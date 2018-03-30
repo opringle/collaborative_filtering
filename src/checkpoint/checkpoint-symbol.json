@@ -1,0 +1,148 @@
+{
+  "nodes": [
+    {
+      "op": "null", 
+      "name": "data", 
+      "inputs": []
+    }, 
+    {
+      "op": "slice_axis", 
+      "name": "slice_axis0", 
+      "attr": {
+        "axis": "1", 
+        "begin": "0", 
+        "end": "1"
+      }, 
+      "inputs": [[0, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "user_embedding_weight", 
+      "attr": {
+        "input_dim": "943", 
+        "output_dim": "50"
+      }, 
+      "inputs": []
+    }, 
+    {
+      "op": "Embedding", 
+      "name": "user_embedding", 
+      "attr": {
+        "input_dim": "943", 
+        "output_dim": "50"
+      }, 
+      "inputs": [[1, 0, 0], [2, 0, 0]]
+    }, 
+    {
+      "op": "slice_axis", 
+      "name": "slice_axis1", 
+      "attr": {
+        "axis": "1", 
+        "begin": "1", 
+        "end": "2"
+      }, 
+      "inputs": [[0, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "item_embedding_weight", 
+      "attr": {
+        "input_dim": "1682", 
+        "output_dim": "50"
+      }, 
+      "inputs": []
+    }, 
+    {
+      "op": "Embedding", 
+      "name": "item_embedding", 
+      "attr": {
+        "input_dim": "1682", 
+        "output_dim": "50"
+      }, 
+      "inputs": [[4, 0, 0], [5, 0, 0]]
+    }, 
+    {
+      "op": "Concat", 
+      "name": "combined_feature_embeddings", 
+      "attr": {
+        "dim": "2", 
+        "num_args": "2"
+      }, 
+      "inputs": [[3, 0, 0], [6, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 1_weight", 
+      "attr": {"num_hidden": "500"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 1_bias", 
+      "attr": {"num_hidden": "500"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "FullyConnected", 
+      "name": "fully connected layer 1", 
+      "attr": {"num_hidden": "500"}, 
+      "inputs": [[7, 0, 0], [8, 0, 0], [9, 0, 0]]
+    }, 
+    {
+      "op": "relu", 
+      "name": "activated layer 1", 
+      "inputs": [[10, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "output layer_weight", 
+      "attr": {"num_hidden": "1"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "output layer_bias", 
+      "attr": {"num_hidden": "1"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "FullyConnected", 
+      "name": "output layer", 
+      "attr": {"num_hidden": "1"}, 
+      "inputs": [[11, 0, 0], [12, 0, 0], [13, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "label", 
+      "inputs": []
+    }, 
+    {
+      "op": "LinearRegressionOutput", 
+      "name": "loss layer", 
+      "inputs": [[14, 0, 0], [15, 0, 0]]
+    }
+  ], 
+  "arg_nodes": [0, 2, 5, 8, 9, 12, 13, 15], 
+  "node_row_ptr": [
+    0, 
+    1, 
+    2, 
+    3, 
+    4, 
+    5, 
+    6, 
+    7, 
+    8, 
+    9, 
+    10, 
+    11, 
+    12, 
+    13, 
+    14, 
+    15, 
+    16, 
+    17
+  ], 
+  "heads": [[16, 0, 0]], 
+  "attrs": {"mxnet_version": ["int", 1100]}
+}
