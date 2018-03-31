@@ -73,19 +73,19 @@
     {
       "op": "null", 
       "name": "fully connected layer 1_weight", 
-      "attr": {"num_hidden": "500"}, 
+      "attr": {"num_hidden": "100"}, 
       "inputs": []
     }, 
     {
       "op": "null", 
       "name": "fully connected layer 1_bias", 
-      "attr": {"num_hidden": "500"}, 
+      "attr": {"num_hidden": "100"}, 
       "inputs": []
     }, 
     {
       "op": "FullyConnected", 
       "name": "fully connected layer 1", 
-      "attr": {"num_hidden": "500"}, 
+      "attr": {"num_hidden": "100"}, 
       "inputs": [[7, 0, 0], [8, 0, 0], [9, 0, 0]]
     }, 
     {
@@ -95,21 +95,67 @@
     }, 
     {
       "op": "null", 
-      "name": "output layer_weight", 
+      "name": "fully connected layer 2_weight", 
+      "attr": {"num_hidden": "50"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 2_bias", 
+      "attr": {"num_hidden": "50"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "FullyConnected", 
+      "name": "fully connected layer 2", 
+      "attr": {"num_hidden": "50"}, 
+      "inputs": [[11, 0, 0], [12, 0, 0], [13, 0, 0]]
+    }, 
+    {
+      "op": "relu", 
+      "name": "activated layer 2", 
+      "inputs": [[14, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 3_weight", 
+      "attr": {"num_hidden": "25"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 3_bias", 
+      "attr": {"num_hidden": "25"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "FullyConnected", 
+      "name": "fully connected layer 3", 
+      "attr": {"num_hidden": "25"}, 
+      "inputs": [[15, 0, 0], [16, 0, 0], [17, 0, 0]]
+    }, 
+    {
+      "op": "relu", 
+      "name": "activated layer 3", 
+      "inputs": [[18, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "label layer_weight", 
       "attr": {"num_hidden": "1"}, 
       "inputs": []
     }, 
     {
       "op": "null", 
-      "name": "output layer_bias", 
+      "name": "label layer_bias", 
       "attr": {"num_hidden": "1"}, 
       "inputs": []
     }, 
     {
       "op": "FullyConnected", 
-      "name": "output layer", 
+      "name": "label layer", 
       "attr": {"num_hidden": "1"}, 
-      "inputs": [[11, 0, 0], [12, 0, 0], [13, 0, 0]]
+      "inputs": [[19, 0, 0], [20, 0, 0], [21, 0, 0]]
     }, 
     {
       "op": "null", 
@@ -117,12 +163,25 @@
       "inputs": []
     }, 
     {
-      "op": "LinearRegressionOutput", 
+      "op": "SoftmaxOutput", 
       "name": "loss layer", 
-      "inputs": [[14, 0, 0], [15, 0, 0]]
+      "inputs": [[22, 0, 0], [23, 0, 0]]
     }
   ], 
-  "arg_nodes": [0, 2, 5, 8, 9, 12, 13, 15], 
+  "arg_nodes": [
+    0, 
+    2, 
+    5, 
+    8, 
+    9, 
+    12, 
+    13, 
+    16, 
+    17, 
+    20, 
+    21, 
+    23
+  ], 
   "node_row_ptr": [
     0, 
     1, 
@@ -141,8 +200,16 @@
     14, 
     15, 
     16, 
-    17
+    17, 
+    18, 
+    19, 
+    20, 
+    21, 
+    22, 
+    23, 
+    24, 
+    25
   ], 
-  "heads": [[16, 0, 0]], 
+  "heads": [[24, 0, 0]], 
   "attrs": {"mxnet_version": ["int", 1100]}
 }

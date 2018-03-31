@@ -16,42 +16,66 @@
 # under the License.
 import pandas as pd
 import numpy as np
+from scipy import sparse as sp
 
-def load_data():
+def load_data(num_negatives):
     """
     Loads and preprocessed data for the movielense 100k dataset.
     Returns input features, labels, and feature counts
     """
     # Load and preprocess data
-    x, y = load_raw_data()
+    df_train, users_train, items_train = load_raw_data("../data/u1.base")
+    df_valid, users_valid, items_valid = load_raw_data("../data/u1.test")
 
-    # Create dictionaries for categorical input features
-    feature_counts = feature_count(x)
-    return [x, y, feature_counts]
+    # Generate feature and label lists
+    user_train, item_train, label_train = get_train_instances(df_train, num_negatives)
+    user_valid, item_valid, label_valid = get_train_instances(df_valid, num_negatives)
 
-def load_raw_data():
+    return [[user_train, item_train, label_train], [user_valid, item_valid, label_valid]]
+
+def load_raw_data(data_path):
     """
-    Loads user/item interaction data from files, splits the data into features and labels.
-    Returns a list of numpy arrays containing features and labels
+    Loads user/item interaction data from files
+    Returns dataframe and user/feature counts
     """
     # Load data from files
-    data_path = "../data/u.data"
     df = pd.read_csv(data_path, sep='\t', names=["user id", "item id", "rating", "timestamp"])
+    df["implicit_feedback"] = 1
 
-    #convert to numpy arrays
-    x = df.as_matrix(columns=["user id", "item id"])
-    y = df.as_matrix(columns=["rating"])
+    # Compute number of unique users/items
+    num_users = df[""].unique()
+    num_items = df[""].unique()
 
-    return [x, y]
+    return df, num_users, num_items
 
-def feature_count(feature_array):
+def get_train_instances(train, num_negatives):
     """
-    Counts number of unique features in each column of a 2d input array.
-    Returns a dictionary of feature counts per column.
+    :param train: pandas df of training data
+    :param num_negatives: number of negative examples to generate
+    :return: 3 lists (user_list, item_list and label_list)
     """
-    feature_sizes = {}
-    for i in range(feature_array.shape[1]):
-        num_unique_elements = len(np.unique(feature_array[:,i]))
-        feature_sizes["feature_" + str(i)] = num_unique_elements
+    #convert to scipy sparse matrix of  user/item interaction data
 
-    return feature_sizes
+
+    user_input, item_input, labels = [],[],[]
+    num_users = train.shape[0]
+    for (u, i) in train.keys():
+        # positive instance
+        user_input.append(u)
+        item_input.append(i)
+        labels.append(1)
+        # negative instances
+        for t in xrange(num_negatives):
+            j = np.random.randint(num_items)
+            while train.has_key((u, j)):
+                j = np.random.randint(num_items)
+            user_input.append(u)
+            item_input.append(j)
+            labels.append(0)
+    return user_input, item_input, labels
+
+def get_valid_instances(train, num_negatives):
+    """
+    clarify wht this should be???
+    """
+    pass

@@ -36,7 +36,7 @@ parser.add_argument('--batch-size', type=int, default=500,
                     help='the number of training records in each minibatch')
 parser.add_argument('--num-embed', type=int, default=50,
                     help='the user/item latent feature dimension')
-parser.add_argument('--optimizer', type=str, default='',
+parser.add_argument('--optimizer', type=str, default='Adam',
                     help='optimization algorithm to update model parameters with')
 parser.add_argument('--lr', type=float, default=0.001,
                     help='learning rate for chosen optimizer')
@@ -74,7 +74,8 @@ def build_model_iterators(x, y, train_percentage, batch_size):
 
 def build_recsys_symbol(iterator,
                         categorical_feature_dict,
-                        num_embed):
+                        num_embed,
+                        fc_layers=[100, 50, 25]):
     """
     Build mxnet model symbol from data characteristics and prespecified hyperparameters.
     :return:  MXNet symbol object
@@ -97,15 +98,18 @@ def build_recsys_symbol(iterator,
     latent_feature_layer = mx.sym.concat(*[user_embed_layer, item_embed_layer], dim=2, name="combined_feature_embeddings")
     print("input features embedding: ", latent_feature_layer.infer_shape(data=feature_batch_shape)[1][0])
 
-    fc1 = mx.sym.FullyConnected(data=latent_feature_layer, num_hidden=500, name="fully connected layer 1")
-    act1 = mx.sym.relu(data=fc1, name="activated layer 1")
-    print("fully connected layer : ", fc1.infer_shape(data=feature_batch_shape)[1][0])
-    print("fully connected activated layer : ", act1.infer_shape(data=feature_batch_shape)[1][0])
+    for i, layer_size in enumerate(fc_layers, start=1):
+        if i == 1:
+            fc = mx.sym.FullyConnected(data=latent_feature_layer, num_hidden=layer_size, name="fully connected layer " + str(i))
+        else:
+            fc = mx.sym.FullyConnected(data=act, num_hidden=layer_size, name="fully connected layer " + str(i))
+        act = mx.sym.relu(data=fc, name="activated layer " + str(i))
+        print("\tfully connected layer : ", fc.infer_shape(data=feature_batch_shape)[1][0])
 
-    output_layer = mx.sym.FullyConnected(data=act1, num_hidden=1, name='output layer')
-    loss_layer = mx.sym.LinearRegressionOutput(data=output_layer, label=y, name="loss layer")
-    print("output layer : ", output_layer.infer_shape(data=feature_batch_shape)[1][0])
-    print("prediction layer : ", loss_layer.infer_shape(data=feature_batch_shape)[1][0])
+    label_layer = mx.sym.FullyConnected(data=act, num_hidden=1, name='label layer')
+    loss_layer = mx.symbol.SoftmaxOutput(data=label_layer, label=y, name="loss layer")
+    print("output layer : ", label_layer.infer_shape(data=feature_batch_shape)[1][0])
+    print("prediction layer : ", loss_layer.infer_shape(data=feature_batch_shape, label=label_batch_shape)[1][0])
 
     return loss_layer
 
@@ -130,7 +134,7 @@ def train(symbol, train_iter, valid_iter):
     module = mx.mod.Module(symbol, data_names=(feature_name, ), label_names=(label_name, ), context=mx.cpu())
     module.fit(train_data=train_iter,
                eval_data=valid_iter,
-               eval_metric='rmse',
+               eval_metric='loss',
                optimizer=args.optimizer,
                optimizer_params={'learning_rate': args.lr},
                initializer=mx.initializer.Uniform(0.1),
