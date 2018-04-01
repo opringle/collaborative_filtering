@@ -1,2 +1,5 @@
-/DATA
+/data
+/preprocessed_data
+src/checkpoint
 .idea/
+*.pyc
