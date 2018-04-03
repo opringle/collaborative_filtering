@@ -19,5 +19,4 @@ A repository to experiment building state of the art recommender systems using a
     
 1. Create custom data iterators with negative sampling ratio as an arguement: https://github.com/apache/incubator-mxnet/blob/master/example/recommenders/negativesample.py.
 2. Think through a clean way to organize all input data and infer vocab size for each categorical variable (eg adding one more categorical variable does not require changes to model code)
-3. Understand why X is described as determining the model capability
-4. Find clean way to display HR@x as an mxnet custom evaluation metric
+3. Find clean way to display HR@x as an mxnet custom evaluation metric
