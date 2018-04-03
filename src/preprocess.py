@@ -35,7 +35,7 @@ parser.add_argument('--output_path', nargs='?', default='../preprocessed_data/',
                         help='Output preprocessed data path.')
 parser.add_argument('--dataset', nargs='?', default='ml-1m',
                         help='Choose a dataset.')
-parser.add_argument('--num-negatives', type=int, default=100,
+parser.add_argument('--num-negatives', type=int, default=4,
                         help='Number of negative examples per user in training set.')
 
 def get_train_instances(train, num_negatives):
@@ -59,7 +59,23 @@ def get_train_instances(train, num_negatives):
             user_input.append(u)
             item_input.append(j)
             labels.append(0)
-    return np.array(user_input), np.array(item_input), np.array(labels)
+    return user_input, item_input, labels
+
+def get_test_instances(test_ratings, test_negatives):
+    """
+    Read in scipy  sparse matrix
+    :return: 3 arrays of input data
+    """
+    user_input, item_input, labels = [], [], []
+    for i, (user, item) in enumerate(test_ratings):
+        user_input.append(user)
+        item_input.append(item)
+        labels.append(1)
+        #negatives
+        user_input.extend([user]*len(test_negatives[i]))
+        item_input.extend(test_negatives[i])
+        labels.extend([0] * len(test_negatives[i]))
+    return user_input, item_input, labels
 
 
 
@@ -77,9 +93,13 @@ if __name__ == '__main__':
     f.write(str((num_users, num_items)))
     f.close()
 
-    user_input, item_input, labels = get_train_instances(train, num_negatives=args.num_negatives)
+    X_train_user, X_train_item, Y_train = get_train_instances(train, num_negatives=args.num_negatives)
+    X_test_user, X_test_item, Y_test = get_test_instances(testRatings, testNegatives)
 
     # save numpy files to array
-    np.save(os.path.join(args.output_path, "user_input"), user_input)
-    np.save(os.path.join(args.output_path, "item_input"), item_input)
-    np.save(os.path.join(args.output_path, "labels"), labels)
+    np.save(os.path.join(args.output_path, "X_train_user"), X_train_user)
+    np.save(os.path.join(args.output_path, "X_train_item"), X_train_item)
+    np.save(os.path.join(args.output_path, "Y_train"), Y_train)
+    np.save(os.path.join(args.output_path, "X_test_user"), X_test_user)
+    np.save(os.path.join(args.output_path, "X_test_item"), X_test_item)
+    np.save(os.path.join(args.output_path, "Y_test"), Y_test)

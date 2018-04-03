@@ -8,10 +8,14 @@ I did not used to think recommender systems were particularly interesting.  I re
 
 However, being fascinated by all applications of deep learning, I've recently been thinking "I wonder if deep learning is used in state of the art recommenders?".  Turns out, yes, everywhere.... The results have been quite astonishing, both in improved system performance and cash money for the companies leveraging it.
 
-If you want to read up on the current state of the art check these papers out:
+If you want to read up on the current state of the art the following paper provides a great review:
+ 
+- [Deep Learning based Recommender System: A Survey and New Perspectives](https://arxiv.org/pdf/1707.07435.pdf)
+ 
+And a few must reads:
 
 - [neural collaborative filtering](https://www.comp.nus.edu.sg/~xiangnan/papers/ncf.pdf)
-- [ Visual Bayesian Personalized Ranking from Implicit Feedback](https://arxiv.org/pdf/1510.01784.pdf)
+- [Visual Bayesian Personalized Ranking from Implicit Feedback](https://arxiv.org/pdf/1510.01784.pdf)
 - [wide and deep learning for recommender systems](https://arxiv.org/pdf/1606.07792.pdf)
 - [A Neural Autoregressive Approach to Collaborative Filtering](https://arxiv.org/pdf/1605.09477.pdf)
 - [A fast learning algorithm for deep belief nets](https://www.cs.toronto.edu/~hinton/absps/fastnc.pdf)
@@ -22,7 +26,7 @@ And here are a few great videos:
 - [Alexandros Karatzoglou: Deep Learning for Recommender Systems](https://www.youtube.com/watch?v=KZ7bcfYGuxw)
 - [Deep Learning for Personalized Search and Recommender Systems part 1](https://www.youtube.com/watch?v=0DYQzZp68ok&t=4999s)
 
-Having read up on the following research papers, this post will be my delve into implementing a state of the art recomender architecture myself.
+Having read up on the following research papers, this post will be my delve into implementing a state of the art recommender architecture myself.
 
 # Ok but why are they so interesting?
 

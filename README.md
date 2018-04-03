@@ -16,8 +16,8 @@ A repository to experiment building state of the art recommender systems using a
 - `$cd ./src && python recsys.py`
 
 ## ToDo
-
-1. implement solution on the smaller dataset    
+    
+1. Add validation data iterator to ensure not overfitting
 2. Understand what X should be in the final fully connected layer (easy)
 3. Train model to comparible loss value (easy)
 4. Create custom evaluation metrics to analyze model (hard)

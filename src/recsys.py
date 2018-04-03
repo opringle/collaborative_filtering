@@ -34,7 +34,11 @@ parser.add_argument('--path', nargs='?', default='../preprocessed_data/',
                         help='Input data path.')
 parser.add_argument('--batch-size', type=int, default=500,
                     help='the number of training records in each minibatch')
-parser.add_argument('--num-embed', type=int, default=50,
+parser.add_argument('--num-embed', type=int, default=64,
+                    help='the user/item latent feature dimension')
+parser.add_argument('--fc-layers', type=list, default=[100, 50, 25],
+                    help='list of hidden layer sizes')
+parser.add_argument('--dropout', type=float, default=0.1,
                     help='the user/item latent feature dimension')
 parser.add_argument('--optimizer', type=str, default='Adam',
                     help='optimization algorithm to update model parameters with')
@@ -55,7 +59,8 @@ def build_recsys_symbol(iterator,
                         num_users,
                         num_items,
                         num_embed,
-                        fc_layers=[100, 50, 25]):
+                        dropout,
+                        fc_layers):
     """
     Build mxnet model symbol from data characteristics and prespecified hyperparameters.
     :return:  MXNet symbol object
@@ -72,7 +77,7 @@ def build_recsys_symbol(iterator,
     user_embed_layer = mx.sym.Embedding(data=user_x, input_dim=num_users, output_dim=num_embed, name="user_embedding")
     item_embed_layer = mx.sym.Embedding(data=item_x, input_dim=num_items, output_dim=num_embed, name="item_embedding")
     print("user feature embedding: ", user_embed_layer.infer_shape(user_x=user_databatch_shape)[1][0])
-    print("item feature embedding: ", item_embed_layer.infer_shape(item_x = item_databatch_shape)[1][0])
+    print("item feature embedding: ", item_embed_layer.infer_shape(item_x=item_databatch_shape)[1][0])
 
     latent_feature_layer = mx.sym.concat(*[user_embed_layer, item_embed_layer], dim=1, name="combined_feature_embeddings")
     print("input features embedding: ", latent_feature_layer.infer_shape(user_x=user_databatch_shape, item_x=item_databatch_shape)[1][0])
@@ -83,14 +88,15 @@ def build_recsys_symbol(iterator,
         else:
             fc = mx.sym.FullyConnected(data=act, num_hidden=layer_size, name="fully connected layer " + str(i))
         act = mx.sym.relu(data=fc, name="activated layer " + str(i))
+        drp  = mx.sym.Dropout(data=act, p=dropout, name="dropout layer " + str(i))
         print("\tfully connected layer : ", fc.infer_shape(user_x=user_databatch_shape, item_x=item_databatch_shape)[1][0])
 
-    label_layer = mx.sym.FullyConnected(data=act, num_hidden=1, name='label layer')
-    loss_layer = mx.symbol.SoftmaxOutput(data=label_layer, label=softmax_label, name="loss layer")
-    print("output layer : ", label_layer.infer_shape(user_x=user_databatch_shape, item_x = item_databatch_shape)[1][0])
-    print("prediction layer : ", loss_layer.infer_shape(user_x=user_databatch_shape, item_x = item_databatch_shape, softmax_label=labelbatch_shape)[1][0])
+    pred = mx.sym.reshape(mx.sym.sigmoid(mx.sym.FullyConnected(data=drp, num_hidden=1)), shape=(0, ), name='prediction layer')
+    loss = - (softmax_label * mx.sym.log(pred)) - ((1-softmax_label) * mx.sym.log(1-pred))
+    loss_grad = mx.sym.make_loss(loss)
+    print("prediction layer : ", pred.infer_shape(user_x=user_databatch_shape, item_x = item_databatch_shape)[1][0])
 
-    return loss_layer
+    return loss_grad
 
 def save_model(output_dir):
     """
@@ -102,7 +108,7 @@ def save_model(output_dir):
 
     return mx.callback.do_checkpoint(prefix="checkpoint/checkpoint", period=args.save_period)
 
-def train(symbol, train_iter):
+def train(symbol, train_iter, val_iter):
     """
     :param symbol: model symbol graph
     :param train_iter: data iterator for training data
@@ -112,6 +118,7 @@ def train(symbol, train_iter):
     feature_name, label_name = train_iter.provide_data[0][0], train_iter.provide_label[0][0]
     module = mx.mod.Module(symbol, data_names=("user_x", "item_x"), label_names=("softmax_label", ), context=mx.cpu())
     module.fit(train_data=train_iter,
+               eval_data=val_iter,
                eval_metric='loss',
                optimizer=args.optimizer,
                optimizer_params={'learning_rate': args.lr},
@@ -131,19 +138,22 @@ if __name__ == '__main__':
             os.remove(os.path.join(args.output_dir, f))
 
     # read in preprocessed data
-    user_input = np.load(os.path.join(args.path, "user_input.np"))
-    item_input = np.load(os.path.join(args.path, "item_input.np"))
-    labels = np.load(os.path.join(args.path, "labels.np"))
+    X_train_user = np.load(os.path.join(args.path, "X_train_user.npy"))
+    X_train_item = np.load(os.path.join(args.path, "X_train_item.npy"))
+    Y_train = np.load(os.path.join(args.path, "Y_train.npy"))
+    X_test_user = np.load(os.path.join(args.path, "X_test_user.npy"))
+    X_test_item = np.load(os.path.join(args.path, "X_test_item.npy"))
+    Y_test = np.load(os.path.join(args.path, "Y_test.npy"))
     with open(os.path.join(args.path, "users_items.txt"), "r") as f:
         num_users, num_items = literal_eval(f.readlines()[0])
-
-    print("records in training set: {0}".format(user_input.shape[0]))
+    print("records in training set: {0}".format(len(X_train_user)))
 
     #  build model data iterator
-    train_iter = mx.io.NDArrayIter(data={'user_x':user_input, 'item_x':item_input}, label=labels, batch_size=args.batch_size)
+    train_iter = mx.io.NDArrayIter(data={'user_x':X_train_user, 'item_x':X_train_item}, label=Y_train, batch_size=args.batch_size, shuffle=True)
+    val_iter = mx.io.NDArrayIter(data={'user_x': X_test_user, 'item_x': X_test_item}, label=Y_test, batch_size=args.batch_size, shuffle=True)
 
     # build model symbol
-    model_symbol = build_recsys_symbol(train_iter, num_users, num_items, args.num_embed)
+    model_symbol = build_recsys_symbol(train_iter, num_users, num_items, args.num_embed, args.dropout, args.fc_layers)
 
     # train the model
-    train(model_symbol, train_iter)
+    train(model_symbol, train_iter, val_iter)
