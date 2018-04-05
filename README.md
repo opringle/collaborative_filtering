@@ -26,6 +26,7 @@ A repository to experiment building state of the art recommender systems using a
     + each feature array is shape = (n_examples, categorical feature count)
     + add x negative samples per label when next is called (to save memory)
     + return mx.NDArrayIer(), dictionary of vocab sizes
+    + return mx.NDArrayIer(), dictionary of vocab sizes
     + to compute  HR@K we need the iterator to:
         + produce a batch for each purchase
         + for each batch sample n items that that user did not buy (that were not negatively sampled in the training set)
