@@ -18,7 +18,7 @@ A repository to experiment building state of the art recommender systems using a
 
 ## ToDo
 
-###Implement Custom  Iterator that allows negative samples to be created as model is fed and can compute HR@K
+### Implement Custom  Iterator that allows negative samples to be created as model is fed and can compute HR@K
 
 1. iterator class should:
     + ingest a pandas dataframe
@@ -40,8 +40,8 @@ A repository to experiment building state of the art recommender systems using a
     
 2. Would be great to be able to compute HR@K with a custom mxnet metric:
 
-        + once we have `label, pred`, we can order the labels by the predictions, slice the top k & sum the array
-        + this could all be done in preprocessing then just pass ordered array to NdArrayIter()
+    + once we have `label, pred`, we can order the labels by the predictions, slice the top k & sum the array
+    + this could all be done in preprocessing then just pass ordered array to NdArrayIter()
 
 3. might be worth just using the iterators in this example:
     + provided they keep negative samples as unseen train samples
