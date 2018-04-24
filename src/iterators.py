@@ -20,6 +20,43 @@
 import mxnet as mx
 import numpy as np
 
+
+# read in df
+# mark train examples as 1, test examples as 2
+# convert to sparse array: unsampled = 0, sampled = 4
+# pass to test iter class
+    # for each record mark n unsampled examples as sampled
+
+
+
+class SparseNegSampleIter(sparse_interactions, n):
+    """
+    :param sparse_interactions: scipy sparse matrix. 0: negative, 1: interaction, 2: sampled negative
+    Takes in pandas df of implicit data and a scipy sparse matrix of negative samples
+    When producing the next batch, selects n of the users records from the sparse array (negative samples) for each record in the pandas df
+    """
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class NegativeSamplingDataIter(mx.io.DataIter):
     """Wraps an existing DataIter to produce a new DataIter with negative samples.
     Assumes that all the relevant inputs are in data, not labels.

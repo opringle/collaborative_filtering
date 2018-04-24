@@ -19,6 +19,8 @@
 
 # -*- coding: utf-8 -*-
 
+import pandas as pd
+import scipy
 import mxnet as mx
 import numpy as np
 import argparse
@@ -56,6 +58,71 @@ parser.add_argument('--output-dir', type=str, default='checkpoint',
 parser.add_argument('--clean-output-dir', type=bool, default=True,
                     help='delete previous output directory files')
 
+def negatives_per_user():
+    """
+    Randomly selects x negative values for each user in a sparse interaction csr matrix
+    :return:
+    """
+
+def build_train_test(df, test_interactions):
+    """
+    :param df: user item interaction data
+    :param x: number most recent transactions per user
+    :return: train & test pandas dataframes
+    """
+    #ToDo: Ensure we only have each user and movie once??
+    df = df[:100]#.drop_duplicates(["user", "movie"])
+
+    # Select latest n interactions per user as test set
+    test_positives=df.groupby(["user"], as_index=False, group_keys=False)\
+        .apply(lambda x: x.nlargest(test_interactions, ["time"]))
+
+    # Let train set be everything remaining
+    train_positives=df[~df.index.isin(test_positives.index.values)]
+
+    # Build sparse representation of all data (positives and negatives)
+    # ToDo: This is format of (row, col) data
+    sparse_interactions=scipy.sparse.csr_matrix(test_positives.values)
+    print("\nDataframe\n{}\nSparse Df\n{}\n".format(test_positives, sparse_interactions))
+
+    # For each user randomly select x negatives
+    train_negatives = [np.random.choice(x) for x in sparse_interactions.rows if x]
+    test_negatives = [np.random.choice(x) for x in sparse_interactions.rows if x]
+
+    # Build training negatives
+
+    # Save to file
+
+    # print(df.head())
+    # print("\n", train_df.head(), "\n", test_df.head())
+    # print(sparse_interactions[:10])
+    # #print(train_negatives)
+    # print(sparse_interactions.rows)
+
+
+
+    # ToDo: We are training at serious scale here, therefore our iterators will read from a file line by line
+    # ToDo: We want to store positive examples only, since if we store negatives we will have an enourmous dataset
+
+    # When training can we just randomly sample negatives
+    # ToDo: Or do we? We could just store all data and rely on distributed computing.
+
+    # ToDo: We want to get the most real evaluation of our model, so we understand what happens when it is used
+    # ToDo: Therefore, we want all test data? If we had 5 possible ranking spots, and ranked all items for the user, what % of recommendations were purchased by the user?
+
+
+    # ToDo: Iterator needs to know which interactions are test, which are train, which are the test samples, how many train samples to select
+    # ToDo: Don't want to store values for negatives as then we run out of memory
+    # ToDo: Instead, lets keep track of three things. Train interactions, Test interactions & Train Negatives
+
+    # ToDo: This is because there are less train negatives per user than train  positives often (maybe? why?)
+
+
+
+
+    return train_df, test_df
+
+
 def build_recsys_symbol(iterator,
                         num_users,
                         num_items,
@@ -66,6 +133,7 @@ def build_recsys_symbol(iterator,
     Build mxnet model symbol from data characteristics and prespecified hyperparameters.
     :return:  MXNet symbol object
     """
+    user_databatch_shape, item_databatch_shape, labelbatch_shape = iterator.provide_data[0][1], \
     user_databatch_shape, item_databatch_shape, labelbatch_shape = iterator.provide_data[0][1], \
                                                                    iterator.provide_data[1][1], \
                                                                    iterator.provide_label[0][1]
@@ -134,38 +202,49 @@ def train(symbol, train_iter, val_iter, metric):
                epoch_end_callback=save_model(args.output_dir))
 
 if __name__ == '__main__':
-    # parse args
+    # Parse args
     args = parser.parse_args()
 
-    # clean the output directory
-    if args.clean_output_dir == True:
-        filelist = [f for f in os.listdir(args.output_dir)]
-        for f in filelist:
-            os.remove(os.path.join(args.output_dir, f))
+    # Read interaction data into pandas dataframe
+    train_df = pd.read_csv("../data/ml-1m.train.rating", sep="\t", names = ["user", "movie", "rating", "time"], header=None)
+    test_df = pd.read_csv("../data/ml-1m.test.rating", sep="\t", names=["user", "movie", "rating", "time"], header=None)
+    df=train_df.append(test_df)
+    df.index.name="id"
+    #print("\ndf head: \n{}\nshape of df: {}. Max user id: {}\n".format(df.head(),df.shape, max(df.user)))
 
-    # read in preprocessed data
-    X_train_user = np.load(os.path.join(args.path, "X_train_user.npy"))
-    X_train_item = np.load(os.path.join(args.path, "X_train_item.npy"))
-    Y_train = np.load(os.path.join(args.path, "Y_train.npy"))
-    X_test_user = np.load(os.path.join(args.path, "X_test_user.npy"))
-    X_test_item = np.load(os.path.join(args.path, "X_test_item.npy"))
-    Y_test = np.load(os.path.join(args.path, "Y_test.npy"))
-    with open(os.path.join(args.path, "users_items.txt"), "r") as f:
-        num_users, num_items = literal_eval(f.readlines()[0])
-    print("records in training set: {0}".format(len(X_train_user)))
+    # Test set is latest x interactions per user
+    train_df, test_df = build_train_test(df, test_interactions=1)
 
-    #  build model data iterator
-    train_iter = mx.io.NDArrayIter(data={'user_x':X_train_user, 'item_x':X_train_item}, label=Y_train,
-                                   batch_size=args.batch_size, shuffle=True)
-    val_iter = mx.io.NDArrayIter(data={'user_x': X_test_user, 'item_x': X_test_item}, label=Y_test,
-                                 batch_size=args.batch_size, shuffle=True)
 
-    # build model symbol
-    model_symbol = build_recsys_symbol(train_iter, num_users, num_items, args.num_embed, args.dropout, args.fc_layers)
-    print(model_symbol.list_outputs())
-
-    # get a custom metric
-    metric = metrics.PreRecF1()
-
-    # train the model
-    train(model_symbol, train_iter, val_iter, metric)
+    #
+    # # clean the output directory
+    # if args.clean_output_dir == True:
+    #     filelist = [f for f in os.listdir(args.output_dir)]
+    #     for f in filelist:
+    #         os.remove(os.path.join(args.output_dir, f))
+    #
+    # # # read in preprocessed data
+    # # X_train_user = np.load(os.path.join(args.path, "X_train_user.npy"))
+    # # X_train_item = np.load(os.path.join(args.path, "X_train_item.npy"))
+    # # Y_train = np.load(os.path.join(args.path, "Y_train.npy"))
+    # # X_test_user = np.load(os.path.join(args.path, "X_test_user.npy"))
+    # # X_test_item = np.load(os.path.join(args.path, "X_test_item.npy"))
+    # # Y_test = np.load(os.path.join(args.path, "Y_test.npy"))
+    # # with open(os.path.join(args.path, "users_items.txt"), "r") as f:
+    # #     num_users, num_items = literal_eval(f.readlines()[0])
+    # # print("records in training set: {0}".format(len(X_train_user)))
+    #
+    # #  build model data iterator
+    #
+    # # Build data iterators
+    # train_iter = mx.io.NDArrayIter(data={'user_x':X_train_user, 'item_x':X_train_item}, label=Y_train,
+    #                                batch_size=args.batch_size, shuffle=True)
+    # val_iter = mx.io.NDArrayIter(data={'user_x': X_test_user, 'item_x': X_test_item}, label=Y_test,
+    #                              batch_size=args.batch_size, shuffle=True)
+    #
+    # # Build model symbol
+    # model_symbol = build_recsys_symbol(train_iter, num_users, num_items, args.num_embed, args.dropout, args.fc_layers)
+    # print(model_symbol.list_outputs())
+    #
+    # # Train the model
+    # train(model_symbol, train_iter, val_iter, metric=metrics.PreRecF1())
