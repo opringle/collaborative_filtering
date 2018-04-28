@@ -15,202 +15,119 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""DataIter for negative sampling.
-"""
+# -*- coding: utf-8 -*-
+
 import mxnet as mx
 import numpy as np
+from operator import itemgetter
+from sklearn.utils import shuffle
+import scipy.sparse as sps
 
-
-# read in df
-# mark train examples as 1, test examples as 2
-# convert to sparse array: unsampled = 0, sampled = 4
-# pass to test iter class
-    # for each record mark n unsampled examples as sampled
-
-
-
-class SparseNegSampleIter(sparse_interactions, n):
-    """
-    :param sparse_interactions: scipy sparse matrix. 0: negative, 1: interaction, 2: sampled negative
-    Takes in pandas df of implicit data and a scipy sparse matrix of negative samples
-    When producing the next batch, selects n of the users records from the sparse array (negative samples) for each record in the pandas df
-    """
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-class NegativeSamplingDataIter(mx.io.DataIter):
-    """Wraps an existing DataIter to produce a new DataIter with negative samples.
-    Assumes that all the relevant inputs are in data, not labels.
-    Drops (replaces) any labels in the original DataIter.
-
-    It only shuffles one of the input data columns, specified in the
-    constructor as shuffle_data_idx.  So if the original input data
-    has three columns, ('item_ids', 'item_words', 'users') and you want
-    to keep the two "item_*" together, then set `shuffle_data_idx=2`
-    and `users` will be shuffled for the negative samples.
-
-    Output batches will be larger than input batches by a factor
-    of (1+sample_ratio)
-
-    Negative samples are always drawn from the same minibatch.
-    So they're effectively sampled according to the frequency at
-    which they appear in the training data.  (Other reasonable
-    samling strategies are not implemented here.)
-    The shuffling is checked to ensure that a true positive sample
-    isn't returned as a negative sample.
-    """
-
-    def __init__(self, source_dataiter, sample_ratio=1, shuffle_data_idx=1,
-                 positive_label=1, negative_label=0):
-        self._sourcedata = source_dataiter
-        source_dataiter.reset()
-        self.positive_label = positive_label  # output shapes = input shapes
-        self.negative_label = negative_label
-        self.shuffle_data_idx = shuffle_data_idx
-        if sample_ratio == int(sample_ratio):
-            self.sample_ratio = int(sample_ratio)
-        else:
-            raise ValueError("sample_ratio must be an integer, not %s" % sample_ratio)
-        self._clear_queue()
-
-        self.provide_data = source_dataiter.provide_data
-        self.provide_label = source_dataiter.provide_label
-        self.batch_size = source_dataiter.batch_size
-
-    def _clear_queue(self):
-        self._sampled_queue = []
-
-    def _push_queue(self, data_list, labels):
-        """Takes a list of numpy arrays for data,
-        and a numpy array for labels.
-        Converts to minibatches and puts it on the queue.
+class SparseNegativeSamplingDataIter(mx.io.DataIter):
+    """DataIter for negative sampling from a sparse matrix"""
+    def __init__(self, sparse_interactions, user_features, item_features, negatives_per_user, interaction_label, negative_sample_label, batch_size,
+                data_names=["user_x", "item_x"], label_names=["softmax_label"], create_batches=True):
         """
-        num_minibatches = 1+self.sample_ratio
-        total_size = len(labels)
-        slice_size = total_size / num_minibatches
-        def slicer(x, s):
-            idx = range(int(s*slice_size), int((s+1)*slice_size))
-            return np.take(x,idx,0)
+        :param sparse_interactions: scipy scr matrix of interaction data. Train and test examples have different interaction labels
+        :param user_feature_list: list of list of features. index is user_id
+        :param item_feature_list: list of list of features. index is item_id
+        :param negatives: number of negatives to sample from sparse array per user
+        :param interaction_label: label to sample as an interaction
+        :param negative_sample_label: mark negative samples with this label in the sparse matrix
+        """
+        self.create_batches = create_batches
+        self.data_names = data_names
+        self.label_names = label_names
+        self.batch_size = batch_size
+        self.negatives = negatives_per_user
+        self.interaction_label = interaction_label
+        self.negative_sample_label = negative_sample_label
 
-        for i in range(1+self.sample_ratio):
-            nddata = [mx.nd.array(slicer(x,i)) for x in data_list]
-            ndlabels = mx.nd.array(slicer(labels,i))
-            batch = mx.io.DataBatch(nddata, [ndlabels], provide_data=self.provide_data,
-                                    provide_label=self.provide_label)
-            self._sampled_queue.append(batch)
+        # Create a list of mx.ndarray of user features & item features to sample when producing a batch
+        self.unique_user_features = mx.nd.array(user_features)
+        self.unique_item_features = mx.nd.array(item_features)
 
-    def next(self):
-        if not self._sampled_queue:
-            self._refill_queue()
-        batch = self._sampled_queue.pop()
-        return batch
+        # Create a list (row, col) to sample positive indices from
+        self.users = []
+        self.items = []
+        self.labels = []
+        for i, user in enumerate(sparse_interactions):
+
+            # Get item interactions for that user
+            interaction_matrix = user.multiply(user == interaction_label)
+            interactions = interaction_matrix.tolil().rows[0]
+
+            self.users.extend([i]*len(interactions))
+            self.items.extend(interactions)
+            self.labels.extend([1]*len(interactions))
+
+            # Get x negatives for that user
+            user_negatives = set(list(range(0, sparse_interactions.shape[1]))) - set(interactions)
+            selected_negatives = np.random.choice(list(user_negatives), size = negatives_per_user)
+
+            self.users.extend([i] * len(selected_negatives))
+            self.items.extend(selected_negatives)
+            self.labels.extend([0]*len(selected_negatives))
+
+        # Set sparse array values where we sampled negatives (so we have a record of what data is left unsampled)
+        negative_indices = [i for i, l in enumerate(self.labels) if l == 0]
+        negative_users = np.array(itemgetter(*negative_indices)(self.users))
+        negative_items = np.array(itemgetter(*negative_indices)(self.items))
+        data = np.ones(shape=(len(negative_indices), )) * negative_sample_label
+
+        sparse_sampled_negatives = sps.csr_matrix((data, (negative_users, negative_items)), shape=sparse_interactions.shape)
+        self.sparse_interactions = sparse_interactions + sparse_sampled_negatives
+
+        # Shuffle self.indices and self.labels
+        self.users, self.items, self.labels = shuffle(self.users, self.items, self.labels)
+
+        # Organize coords into batches
+        self.idx = []
+        self.idx.extend([j for j in range(0, len(self.labels) - self.batch_size + 1, self.batch_size)])
+        self.curr_idx = 0
+        self.reset()
+
+        self.provide_data = [mx.io.DataDesc(name=self.data_names[0], shape=(self.batch_size, self.unique_user_features.shape[1])),
+                             mx.io.DataDesc(name=self.data_names[1], shape=(self.batch_size, self.unique_item_features.shape[1]))]
+        self.provide_label = [mx.io.DataDesc(name=self.label_names[0], shape=(self.batch_size, ))]
 
     def reset(self):
-        self._sourcedata.reset()
-        self._clear_queue()
+        """Resets the iterator to the beginning of the data."""
+        self.curr_idx = 0
 
-    def _shuffle_batch(self, data):
-        # Takes a list of NDArrays.  Returns a shuffled version as numpy
-        a = data[self.shuffle_data_idx].asnumpy()
+        self.ndlabels = mx.nd.array(self.labels)
+        self.ndusers = mx.nd.array(self.users)
+        self.nditems = mx.nd.array(self.items)
 
-        # Come up with a shuffled index
-        batch_size = data[0].shape[0]
-        si = np.arange(batch_size)
-        np.random.shuffle(si)
-        matches = (si == np.arange(batch_size)) # everywhere it didn't shuffle
-        si -= matches  # Shifts down by 1 when true, ensuring it differs
-        # Note shifting down by 1 works in python because -1 is a valid index.
-        #Q: Is this shifting introducing bias?
+        # Create feature data
+        if self.create_batches:
+            self.nduserfeatures = mx.ndarray.take(a=self.unique_user_features, indices=self.ndusers)
+            self.nditemfeatures = mx.ndarray.take(a=self.unique_item_features, indices=self.nditems)
 
-        # Shuffle the data with the shuffle index
-        shuf_a = np.take(a,si,0)  # like a[si,:] but general for ndarray's
+    def next(self):
+        """Returns the next batch of data."""
+        if self.curr_idx == len(self.idx):
+            raise StopIteration
 
-        # Return similar datastructure to what we got.  Convert all to numpy
-        out = [d.asnumpy() for d in data]
-        out[self.shuffle_data_idx] = shuf_a
-        return out
+        # Fetch the index
+        i = self.idx[self.curr_idx]
+        self.curr_idx += 1
 
-    def _refill_queue(self):
-        """Fetch another batch from the source, and shuffle it to make
-        negative samples.
-        """
-        original = self._sourcedata.next().data  # List of NDArrays: one per input
-        batch_size = original[0].shape[0]
-        num_inputs = len(original)
+        # Get labels
+        labels = self.ndlabels[i:i+self.batch_size]
 
-        #Start with positive examples, copied straight
-        outdata = [[o.asnumpy()] for o in original] # list of lists of numpy arrays
-        outlabels = [np.ones(batch_size) * self.positive_label] # list of numpy arrays
-        # The inner list of both is the set of samples.  We'll recombine later.
+        # Get feature arrays
+        if self.create_batches:
+            user_features = self.nduserfeatures[i:i+self.batch_size]
+            item_features = self.nditemfeatures[i:i+self.batch_size]
+        else:
+            # Create user feature arrays
+            users = self.ndusers[i:i+self.batch_size]
+            items = self.nditems[i:i + self.batch_size]
+            user_features = mx.ndarray.take(a=self.unique_user_features, indices=users)
+            item_features = mx.ndarray.take(a=self.unique_item_features, indices=items)
 
-        # Construct negative samples.
-        for _ in range(self.sample_ratio):
-            shuffled = self._shuffle_batch(original)
-            for i,d in enumerate(shuffled):
-                outdata[i].append(d)
-            outlabels.append(np.ones(batch_size) * self.negative_label)
-        def stacker(x):
-            if len(x[0].shape)==1:
-                return np.hstack(x)
-            else:
-                return np.vstack(x)
-        outdata = [stacker(x) for x in outdata] # Single tall vectors
-        outlabels = stacker(outlabels)
-
-        # Record-level shuffle so the negatives are mixed in.
-        def shuffler(x, idx):
-            return np.take(x,idx,0)
-        shuf_idx = np.arange(len(outlabels))
-        np.random.shuffle(shuf_idx)
-        outdata = [shuffler(o,shuf_idx) for o in outdata]
-        outlabels = shuffler(outlabels,shuf_idx)
-        self._push_queue(outdata,outlabels)
-
-
-if __name__ == "__main__":
-    print("Simple test of NegativeSamplingDataIter")
-    np.random.seed(123)
-    A = np.random.randint(-20,150,size=(100,5))
-    B = np.random.randint(-2,15,size=(100,2))
-    R = np.random.randint(1,5,size=(100,))
-    batch_size=3
-    oridi = mx.io.NDArrayIter(data={'a':A,'b':B},label=R, batch_size=batch_size)
-    oribatch = oridi.next()
-    oridi.reset()
-    for ratio in range(0,5):
-        nsdi = NegativeSamplingDataIter(oridi, sample_ratio=ratio)
-
-        # Check sizes of output
-        bat = nsdi.next()
-        for i in range(len(bat.data)):
-            assert bat.data[i].shape[0] == batch_size
-            assert bat.data[i].shape[1] == oribatch.data[i].shape[1]
-        assert bat.label.shape[0] == batch_size
-
-        # Check that we get more minibatches
-        oridi.reset()
-        ori_cnt = len(list(oridi))
-        nsdi.reset()
-        ns_cnt = len(list(nsdi))
-        assert ns_cnt == ori_cnt * (1+ratio)
-
-    print("Tests done")
+        return mx.io.DataBatch([user_features, item_features], [labels], pad=0,
+                         provide_data=[mx.io.DataDesc(name=self.data_names[0], shape=user_features.shape),
+                                       mx.io.DataDesc(name=self.data_names[1], shape=item_features.shape)],
+                         provide_label=[mx.io.DataDesc(name=self.label_names[0], shape=labels.shape)])
