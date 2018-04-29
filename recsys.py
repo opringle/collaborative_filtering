@@ -62,6 +62,8 @@ parser.add_argument('--output-dir', type=str, default='checkpoint',
                     help='directory to save model params/symbol to')
 parser.add_argument('--clean-output-dir', type=bool, default=True,
                     help='delete previous output directory files')
+parser.add_argument('--gpus', type=str, default='',
+                    help='list of gpus to run, e.g. 0 or 0,2,5. empty means using cpu. ')
 
 def evaluate(module, iterator, k, test_interactions, num_users):
     """
@@ -175,7 +177,8 @@ def train(symbol, train_iter, val_iter):
     :param valid_iter: data iterator for validation data
     :return: model to predict label from features
     """
-    module = mx.mod.Module(symbol, data_names=train_iter.data_names, label_names=train_iter.label_names, context=mx.cpu())
+    devs = mx.cpu() if args.gpus is None or args.gpus is '' else [mx.gpu(int(i)) for i in args.gpus.split(',')]
+    module = mx.mod.Module(symbol, data_names=train_iter.data_names, label_names=train_iter.label_names, context=devs)
     module.fit(train_data=train_iter,
                #eval_data=val_iter,
                optimizer=args.optimizer,
