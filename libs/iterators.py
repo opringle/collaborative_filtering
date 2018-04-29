@@ -25,7 +25,7 @@ import scipy.sparse as sps
 
 class SparseNegativeSamplingDataIter(mx.io.DataIter):
     """DataIter for negative sampling from a sparse matrix"""
-    def __init__(self, sparse_interactions, user_features, item_features, negatives_per_user, interaction_label, negative_sample_label, batch_size,
+    def __init__(self, sparse_interactions, user_features, item_features, negatives_per_interaction, interaction_label, negative_sample_label, batch_size,
                 data_names=["user_x", "item_x"], label_names=["softmax_label"], create_batches=True):
         """
         :param sparse_interactions: scipy scr matrix of interaction data. Train and test examples have different interaction labels
@@ -39,7 +39,7 @@ class SparseNegativeSamplingDataIter(mx.io.DataIter):
         self.data_names = data_names
         self.label_names = label_names
         self.batch_size = batch_size
-        self.negatives = negatives_per_user
+        self.negatives = negatives_per_interaction
         self.interaction_label = interaction_label
         self.negative_sample_label = negative_sample_label
 
@@ -53,21 +53,29 @@ class SparseNegativeSamplingDataIter(mx.io.DataIter):
         self.labels = []
         for i, user in enumerate(sparse_interactions):
 
+            # ToDo: this is allowing test data to be drawn as train negatives!
             # Get item interactions for that user
-            interaction_matrix = user.multiply(user == interaction_label)
-            interactions = interaction_matrix.tolil().rows[0]
+            interactions = user.multiply(user == interaction_label).tolil().rows[0]
+            interactions = user.multiply(user == negative_sample_label).tolil().rows[0]
 
             self.users.extend([i]*len(interactions))
             self.items.extend(interactions)
             self.labels.extend([1]*len(interactions))
 
-            # Get x negatives for that user
+            # Get x negatives per interaction for that user
             user_negatives = set(list(range(0, sparse_interactions.shape[1]))) - set(interactions)
-            selected_negatives = np.random.choice(list(user_negatives), size = negatives_per_user)
+            sample_size = int(min(negatives_per_interaction * len(interactions), len(user_negatives)))
+            selected_negatives = np.random.choice(list(user_negatives), size = sample_size, replace=False)
 
             self.users.extend([i] * len(selected_negatives))
             self.items.extend(selected_negatives)
             self.labels.extend([0]*len(selected_negatives))
+
+            # if i < 10:
+            #
+            #     print("\nnum users/items = {}\nuser {} interacted with items: {}\nuser {} selected negatives: {}".
+            #           format(sparse_interactions.shape,i, len(interactions), i, len(selected_negatives)))
+            #     print(interactions)
 
         # Set sparse array values where we sampled negatives (so we have a record of what data is left unsampled)
         negative_indices = [i for i, l in enumerate(self.labels) if l == 0]
@@ -113,8 +121,10 @@ class SparseNegativeSamplingDataIter(mx.io.DataIter):
         i = self.idx[self.curr_idx]
         self.curr_idx += 1
 
-        # Get labels
+        # Get labels & ids
         labels = self.ndlabels[i:i+self.batch_size]
+        users = self.ndusers[i:i + self.batch_size]
+        items = self.nditems[i:i + self.batch_size]
 
         # Get feature arrays
         if self.create_batches:
@@ -122,12 +132,10 @@ class SparseNegativeSamplingDataIter(mx.io.DataIter):
             item_features = self.nditemfeatures[i:i+self.batch_size]
         else:
             # Create user feature arrays
-            users = self.ndusers[i:i+self.batch_size]
-            items = self.nditems[i:i + self.batch_size]
             user_features = mx.ndarray.take(a=self.unique_user_features, indices=users)
             item_features = mx.ndarray.take(a=self.unique_item_features, indices=items)
 
-        return mx.io.DataBatch([user_features, item_features], [labels], pad=0,
+        return mx.io.DataBatch([user_features, item_features], [labels], index = users, pad=0,
                          provide_data=[mx.io.DataDesc(name=self.data_names[0], shape=user_features.shape),
                                        mx.io.DataDesc(name=self.data_names[1], shape=item_features.shape)],
                          provide_label=[mx.io.DataDesc(name=self.label_names[0], shape=labels.shape)])
