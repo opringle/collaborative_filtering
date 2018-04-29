@@ -1,5 +1,4 @@
-/data
-/preprocessed_data
-src/checkpoint
+/preprocessed_data/checkpoint
 .idea/
+.vscode
 *.pyc
