@@ -20,13 +20,13 @@
 import mxnet as mx
 import numpy as np
 from operator import itemgetter
-from sklearn.utils import shuffle
+from sklearn.utils import shuffle as shuf
 import scipy.sparse as sps
 
 class SparseNegativeSamplingDataIter(mx.io.DataIter):
     """DataIter for negative sampling from a sparse matrix"""
-    def __init__(self, sparse_interactions, user_features, item_features, negatives_per_interaction, interaction_label, negative_sample_label, batch_size,
-                data_names=["user_x", "item_x"], label_names=["softmax_label"], create_batches=True):
+    def __init__(self, sparse_interactions, user_features, item_features, negatives_per_interaction, interaction_label, interaction_labels, negative_sample_label, batch_size,
+                data_names=["user_x", "item_x"], label_names=["softmax_label"], create_batches=True, shuffle=True):
         """
         :param sparse_interactions: scipy scr matrix of interaction data. Train and test examples have different interaction labels
         :param user_feature_list: list of list of features. index is user_id
@@ -51,31 +51,28 @@ class SparseNegativeSamplingDataIter(mx.io.DataIter):
         self.users = []
         self.items = []
         self.labels = []
-        for i, user in enumerate(sparse_interactions):
 
-            # ToDo: this is allowing test data to be drawn as train negatives!
+        for i, user in enumerate(sparse_interactions):
             # Get item interactions for that user
-            interactions = user.multiply(user == interaction_label).tolil().rows[0]
-            interactions = user.multiply(user == negative_sample_label).tolil().rows[0]
+            other_interactions = []
+            for label in interaction_labels:
+                if label == interaction_label:
+                    interactions = user.multiply(user == label).tolil().rows[0]
+                else:
+                    other_interactions.extend(user.multiply(user == label).tolil().rows[0])
 
             self.users.extend([i]*len(interactions))
             self.items.extend(interactions)
             self.labels.extend([1]*len(interactions))
 
             # Get x negatives per interaction for that user
-            user_negatives = set(list(range(0, sparse_interactions.shape[1]))) - set(interactions)
+            user_negatives = set(list(range(0, sparse_interactions.shape[1]))) - set(interactions) - set(other_interactions)
             sample_size = int(min(negatives_per_interaction * len(interactions), len(user_negatives)))
             selected_negatives = np.random.choice(list(user_negatives), size = sample_size, replace=False)
 
             self.users.extend([i] * len(selected_negatives))
             self.items.extend(selected_negatives)
             self.labels.extend([0]*len(selected_negatives))
-
-            # if i < 10:
-            #
-            #     print("\nnum users/items = {}\nuser {} interacted with items: {}\nuser {} selected negatives: {}".
-            #           format(sparse_interactions.shape,i, len(interactions), i, len(selected_negatives)))
-            #     print(interactions)
 
         # Set sparse array values where we sampled negatives (so we have a record of what data is left unsampled)
         negative_indices = [i for i, l in enumerate(self.labels) if l == 0]
@@ -86,8 +83,9 @@ class SparseNegativeSamplingDataIter(mx.io.DataIter):
         sparse_sampled_negatives = sps.csr_matrix((data, (negative_users, negative_items)), shape=sparse_interactions.shape)
         self.sparse_interactions = sparse_interactions + sparse_sampled_negatives
 
-        # Shuffle self.indices and self.labels
-        self.users, self.items, self.labels = shuffle(self.users, self.items, self.labels)
+        # Shuffle data
+        if shuffle:
+            self.users, self.items, self.labels = shuf(self.users, self.items, self.labels)
 
         # Organize coords into batches
         self.idx = []

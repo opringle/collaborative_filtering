@@ -18,9 +18,9 @@ A repository to experiment building recommender systems using apache MXNet.
 
 ## ToDo
   
-- [ ] Is sampling all negatives in the training set cheating?
-    - Find out why positive samples are not drawn if we draw lots of negatives...
+- [x] Ensure data iterator is feeding correct data to model
 - [x] Compute HR@K per epoch with callback function
-- [ ] Investigate low accuracy:
-    - If train/test set contains 99 negatives per positive, accuracy should be around 99% immediately
-    - This is likely a problem with the iterator
+- [ ] Get model training robustly with a single negative training sample (could be to do with output layer size)
+- [ ] Print log loss during training 
+- [ ] Achieve similar training loss after similar epochs as paper
+- [ ] Drastically increase model size and train on instance with dropout

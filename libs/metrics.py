@@ -31,22 +31,21 @@ def TopKAccuracy(module, iterator, k, test_interactions_per_user, num_users):
     should be computed on all data at once
     :return:
     """
-    user_ids, labels, interaction_probs = [], [], []
+    user_ids, item_ids, labels, interaction_probs = [], [], [], []
     for pred, i_batch, batch in module.iter_predict(iterator):
-        user_ids.extend(batch.index.asnumpy().tolist())
+        user_ids.extend(batch.data[0].asnumpy().flatten().tolist())
+        item_ids.extend(batch.data[1].asnumpy().flatten().tolist())
         labels.extend(batch.label[0].asnumpy().tolist())
         interaction_probs.extend(pred[0].asnumpy()[:, 1].flatten().tolist())
 
     # Create pandas df
-    df = pd.DataFrame(data={"pred_prob": interaction_probs, "label": labels}, index=user_ids)
+    df = pd.DataFrame(data={"item": item_ids, "pred_prob": interaction_probs, "label": labels}, index=user_ids)
 
     # Select k largest model predictions per user
     df = df.groupby(df.index).apply(lambda x: x.nlargest(k, ["pred_prob"]))
+    print(df.head())
 
     # What percentage of the interactions would we have recommended?
     score = np.sum(df["label"]) / (test_interactions_per_user * num_users)
 
     print("Validation Top-{}-Accuracy: {}\n".format(k, score))
-
-def CustomAcc(label, pred):
-    pass
