@@ -25,8 +25,8 @@ import mxnet as mx
 import numpy as np
 import argparse
 import logging
-import time
 import os
+import shutil
 from libs import iterators
 from libs import metrics
 
@@ -40,10 +40,12 @@ parser.add_argument('--test-interactions', type=int, default=1,
                     help='for each user latest n interactions are test set')
 parser.add_argument('--train-negatives', type=int, default=2,
                     help='the number of negative samples per training interaction')
-parser.add_argument('--test-negatives', type=int, default=99,
+parser.add_argument('--test-negatives', type=int, default=100,
                     help='the number of negative samples per validation interaction')
 parser.add_argument('--topk', type=int, default=10,
                     help='size of model ranking list')
+parser.add_argument('--eval-period', type=int, default=10,
+                    help='the user/item latent feature dimension')
 parser.add_argument('--batch-size', type=int, default=256,
                     help='the number of training records in each minibatch')
 parser.add_argument('--num-epochs', type=int, default=100,
@@ -70,7 +72,7 @@ def evaluate(module, iterator, k, test_interactions, num_users):
     Evaluate a module and iterator
     """
     def _callback(epoch, sym=None, arg=None, aux=None):
-        if epoch%10==0 and epoch>0:
+        if epoch % args.eval_period == 0 and epoch > 0:
             return metrics.TopKAccuracy(module, iterator, k, test_interactions, num_users)
 
     return _callback
@@ -104,12 +106,15 @@ def build_iter_data(df, test_interactions, user_feature_cols, item_feature_cols)
 
     # Let train set be everything remaining
     train_positives=df[~df.index.isin(test_positives.index.values)]
-    assert test_positives.shape[0]+train_positives.shape[0]==df.shape[0]
+    assert test_positives.shape[0]+train_positives.shape[0] == df.shape[0]
 
     # Create sparse matrix of train and test interactions (1 is train interaction, 2 is test interaction, 0 is negative)
-    row = np.concatenate((np.array(train_positives.user.values.tolist()), np.array(test_positives.user.values.tolist())), axis=0)
-    col = np.concatenate((np.array(train_positives.movie.values.tolist()), np.array(test_positives.movie.values.tolist())), axis=0)
-    data = np.concatenate((np.array([1]*train_positives.shape[0]), np.array([2]*test_positives.shape[0])), axis=0)
+    row = np.concatenate((np.array(train_positives.user.values.tolist()),
+                          np.array(test_positives.user.values.tolist())), axis=0)
+    col = np.concatenate((np.array(train_positives.movie.values.tolist()),
+                          np.array(test_positives.movie.values.tolist())), axis=0)
+    data = np.concatenate((np.array([1]*train_positives.shape[0]),
+                           np.array([2]*test_positives.shape[0])), axis=0)
     sparse_interactions = sps.csr_matrix((data, (row, col)), shape=(n_users, n_items))
 
     # Build unique user/item features
@@ -118,15 +123,18 @@ def build_iter_data(df, test_interactions, user_feature_cols, item_feature_cols)
 
     # Build validation iterator, sampling x negatives per test interaction
     val_iter = iterators.SparseNegativeSamplingDataIter(sparse_interactions, user_features, item_features,
-                                                        negatives_per_interaction=args.test_negatives, negative_sample_label=3,
-                                                        interaction_label=2, interaction_labels=[1,2,3], batch_size=args.batch_size,
-                                                        shuffle=True)
+                                                        negatives_per_interaction=args.test_negatives,
+                                                        negative_sample_label=3, interaction_label=2,
+                                                        interaction_labels=[1,2,3], batch_size=args.batch_size)
 
 
     # Build training iterator, making sure negatives sampled are not in the test set
-    train_iter = iterators.SparseNegativeSamplingDataIter(val_iter.sparse_interactions, user_features, item_features,
-                                                          negatives_per_interaction=args.train_negatives, negative_sample_label=3,
-                                                          interaction_label=1, interaction_labels=[1,2,3], batch_size=args.batch_size)
+    train_iter = iterators.SparseNegativeSamplingDataIter(sparse_interactions, user_features, item_features,
+                                                          negatives_per_interaction=args.train_negatives,
+                                                          negative_sample_label=3, interaction_label=1,
+                                                          interaction_labels=[1,2,3], batch_size=args.batch_size)
+    print("training records: {}\ttesting records: {}".format(train_iter.nduserfeatures.shape[0],
+                                                             val_iter.nduserfeatures.shape[0]))
     return train_iter, val_iter, n_users, n_items, df
 
 def build_recsys_symbol(iterator, num_users, num_items, num_embed, dropout, fc_layers):
@@ -137,7 +145,6 @@ def build_recsys_symbol(iterator, num_users, num_items, num_embed, dropout, fc_l
     user_databatch_shape, item_databatch_shape, labelbatch_shape = iterator.provide_data[0][1], \
                                                                    iterator.provide_data[1][1], \
                                                                    iterator.provide_label[0][1]
-
 
     user_x = mx.sym.Variable(name="user_x")
     item_x = mx.sym.Variable(name="item_x")
@@ -165,10 +172,13 @@ def build_recsys_symbol(iterator, num_users, num_items, num_embed, dropout, fc_l
         drp  = mx.sym.Dropout(data=act, p=dropout, name="dropout layer " + str(i))
         print("\tfully connected layer : ", fc.infer_shape(user_x=user_databatch_shape, item_x=item_databatch_shape)[1][0])
 
-    pred = mx.sym.FullyConnected(data=drp, num_hidden=2, name='pred')
-    print("prediction shape: ", pred.infer_shape(user_x=user_databatch_shape, item_x=item_databatch_shape)[1][0])
+    pred = mx.sym.reshape(mx.sym.sigmoid(mx.sym.FullyConnected(data=drp, num_hidden=1)), shape=(0,), name='pred')
+    print("prediction layer : ", pred.infer_shape(user_x=user_databatch_shape, item_x=item_databatch_shape)[1][0])
 
-    return mx.sym.SoftmaxOutput(data=pred, label=softmax_label)
+    log_loss = - (softmax_label * mx.sym.log(pred)) - ((1 - softmax_label) * mx.sym.log(1 - pred))
+    loss_grad = mx.sym.make_loss(log_loss)
+
+    return mx.sym.Group([mx.sym.BlockGrad(pred, name="pred"), loss_grad])
 
 def train(symbol, train_iter, val_iter):
     """
@@ -180,9 +190,8 @@ def train(symbol, train_iter, val_iter):
     devs = mx.cpu() if args.gpus is None or args.gpus is '' else [mx.gpu(int(i)) for i in args.gpus.split(',')]
     module = mx.mod.Module(symbol, data_names=train_iter.data_names, label_names=train_iter.label_names, context=devs)
     module.fit(train_data=train_iter,
-               #eval_data=val_iter,
                optimizer=args.optimizer,
-               eval_metric=mx.metric.Accuracy(),
+               eval_metric=mx.metric.Loss(),
                optimizer_params={'learning_rate': args.lr},
                initializer=mx.initializer.Normal(sigma=0.01),
                num_epoch=args.num_epochs,
@@ -193,17 +202,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Setup dirs
-    if args.clean_output_dir:
-        pass
-    if not os.path.exists(args.output_dir):
-        os.mkdir(args.output_dir)
+    shutil.rmtree(args.output_dir) if args.clean_output_dir else None
+    os.mkdir(args.output_dir) if not os.path.exists(args.output_dir) else None
 
     # Read interaction data into pandas dataframe
-    # ToDo: Find joined data from download
-    train_df = pd.read_csv(os.path.join(args.data, "ml-1m.train.rating"), sep="\t", names = ["user", "movie", "rating", "time"], header=None, index_col=False)
-    test_df = pd.read_csv(os.path.join(args.data, "ml-1m.test.rating"), sep="\t", names=["user", "movie", "rating", "time"], header=None, index_col=False)
-    df=train_df.append(test_df)
-    df.reset_index(inplace=True, drop=True)
+    df = pd.read_csv(os.path.join(args.data, "ratings.dat"), sep="::", names=["user", "movie", "rating", "time"])
 
     # Build data iterators
     train_iter, val_iter, num_users, num_items, df = build_iter_data(df, test_interactions=args.test_interactions,
