@@ -38,23 +38,23 @@ parser.add_argument('--data', nargs='?', default='./data',
                         help='Input data folder')
 parser.add_argument('--test-interactions', type=int, default=1,
                     help='for each user latest n interactions are test set')
-parser.add_argument('--train-negatives', type=int, default=2,
+parser.add_argument('--train-negatives', type=int, default=4,
                     help='the number of negative samples per training interaction')
-parser.add_argument('--test-negatives', type=int, default=100,
+parser.add_argument('--test-negatives', type=int, default=99,
                     help='the number of negative samples per validation interaction')
 parser.add_argument('--topk', type=int, default=10,
                     help='size of model ranking list')
-parser.add_argument('--eval-period', type=int, default=10,
+parser.add_argument('--eval-period', type=int, default=1,
                     help='the user/item latent feature dimension')
 parser.add_argument('--batch-size', type=int, default=256,
                     help='the number of training records in each minibatch')
 parser.add_argument('--num-epochs', type=int, default=100,
                     help='how  many times to update the model parameters')
-parser.add_argument('--num-embed', type=int, default=64,
+parser.add_argument('--num-embed', type=int, default=32,
                     help='the user/item latent feature dimension')
-parser.add_argument('--fc-layers', type=list, default=[64,32,16],
+parser.add_argument('--fc-layers', type=list, default=[32,16,8],
                     help='list of hidden layer sizes')
-parser.add_argument('--dropout', type=float, default=0.0,
+parser.add_argument('--dropout', type=float, default=0.2,
                     help='the user/item latent feature dimension')
 parser.add_argument('--optimizer', type=str, default='Adam',
                     help='optimization algorithm to update model parameters with')
@@ -67,6 +67,7 @@ parser.add_argument('--clean-output-dir', type=bool, default=True,
 parser.add_argument('--gpus', type=str, default='',
                     help='list of gpus to run, e.g. 0 or 0,2,5. empty means using cpu. ')
 
+
 def evaluate(module, iterator, k, test_interactions, num_users):
     """
     Evaluate a module and iterator
@@ -77,6 +78,7 @@ def evaluate(module, iterator, k, test_interactions, num_users):
 
     return _callback
 
+
 def reset_id(df, cols):
 
     for col in cols:
@@ -84,6 +86,7 @@ def reset_id(df, cols):
         new_ids=list(range(len(old_ids)))
         mapping = dict(zip(old_ids, new_ids))
         df.loc[:, col] = [mapping[old_id] for old_id in df[col].tolist()]
+
 
 def build_iter_data(df, test_interactions, user_feature_cols, item_feature_cols):
     """
@@ -125,17 +128,20 @@ def build_iter_data(df, test_interactions, user_feature_cols, item_feature_cols)
     val_iter = iterators.SparseNegativeSamplingDataIter(sparse_interactions, user_features, item_features,
                                                         negatives_per_interaction=args.test_negatives,
                                                         negative_sample_label=3, interaction_label=2,
-                                                        interaction_labels=[1,2,3], batch_size=args.batch_size)
+                                                        interaction_labels=[1,2,3], batch_size=args.batch_size,
+                                                        resample=False)
 
 
     # Build training iterator, making sure negatives sampled are not in the test set
     train_iter = iterators.SparseNegativeSamplingDataIter(sparse_interactions, user_features, item_features,
                                                           negatives_per_interaction=args.train_negatives,
-                                                          negative_sample_label=3, interaction_label=1,
-                                                          interaction_labels=[1,2,3], batch_size=args.batch_size)
+                                                          negative_sample_label=0, interaction_label=1,
+                                                          interaction_labels=[1,2,3], batch_size=args.batch_size,
+                                                          resample=True)
     print("training records: {}\ttesting records: {}".format(train_iter.nduserfeatures.shape[0],
                                                              val_iter.nduserfeatures.shape[0]))
     return train_iter, val_iter, n_users, n_items, df
+
 
 def build_recsys_symbol(iterator, num_users, num_items, num_embed, dropout, fc_layers):
     """
@@ -180,6 +186,7 @@ def build_recsys_symbol(iterator, num_users, num_items, num_embed, dropout, fc_l
 
     return mx.sym.Group([mx.sym.BlockGrad(pred, name="pred"), loss_grad])
 
+
 def train(symbol, train_iter, val_iter):
     """
     :param symbol: model symbol graph
@@ -197,6 +204,7 @@ def train(symbol, train_iter, val_iter):
                num_epoch=args.num_epochs,
                epoch_end_callback=evaluate(module, val_iter, args.topk, args.test_interactions, num_users))
 
+
 if __name__ == '__main__':
     # Parse args
     args = parser.parse_args()
@@ -206,14 +214,20 @@ if __name__ == '__main__':
     os.mkdir(args.output_dir) if not os.path.exists(args.output_dir) else None
 
     # Read interaction data into pandas dataframe
-    df = pd.read_csv(os.path.join(args.data, "ratings.dat"), sep="::", names=["user", "movie", "rating", "time"])
+    print('reading in interaction data...'.format())
+    df = pd.read_csv(os.path.join(args.data, "ratings.dat"), sep="::", names=["user", "movie", "rating", "time"],
+                     engine='python')
 
     # Build data iterators
+    print('building iterators...'.format())
     train_iter, val_iter, num_users, num_items, df = build_iter_data(df, test_interactions=args.test_interactions,
-                                                                 user_feature_cols=["user"], item_feature_cols=["movie"])
+                                                                     user_feature_cols=["user"],
+                                                                     item_feature_cols=["movie"])
 
     # Build model symbol
+    print('building model graph...'.format())
     model_symbol = build_recsys_symbol(train_iter, num_users, num_items, args.num_embed, args.dropout, args.fc_layers)
 
     # Train the model
+    print('training...'.format())
     train(model_symbol, train_iter, val_iter)

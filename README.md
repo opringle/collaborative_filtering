@@ -30,7 +30,8 @@ A repository to experiment building recommender systems using apache MXNet.
 - [x] Do not specify batch size in network symbol
 - [x] Ensure network symbol is correct
 - [x] Print log loss during training with single output neuron
+- [x] Each time reset is called, sample new negatives in training
+- [x] Ensure iter_predict in evaluate callback is returning all test preds
 - [ ] Achieve similar training loss after similar epochs as paper
-- [ ] Regularize model in the same way they did in the paper
-- [ ] Get model training robustly with a single negative training sample (could be to do with output layer size) 
-- [ ] Drastically increase model size and train on instance with dropout
+- [x] Achieve similar validation HR@10 after similar epochs as paper
+- [ ] Test large models with dropout
