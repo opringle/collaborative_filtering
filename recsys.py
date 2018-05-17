@@ -52,7 +52,7 @@ parser.add_argument('--num-epochs', type=int, default=100,
                     help='how  many times to update the model parameters')
 parser.add_argument('--num-embed', type=int, default=32,
                     help='the user/item latent feature dimension')
-parser.add_argument('--fc-layers', type=list, default=[32,16,8],
+parser.add_argument('--fc-layers', type=list, default=[32, 16, 8],
                     help='list of hidden layer sizes')
 parser.add_argument('--dropout', type=float, default=0.2,
                     help='the user/item latent feature dimension')
@@ -68,19 +68,20 @@ parser.add_argument('--gpus', type=str, default='',
                     help='list of gpus to run, e.g. 0 or 0,2,5. empty means using cpu. ')
 
 
-def evaluate(module, iterator, k, test_interactions, num_users):
+def evaluate_and_save(module, iterator, k, test_interactions, num_users):
     """
     Evaluate a module and iterator
     """
     def _callback(epoch, sym=None, arg=None, aux=None):
         if epoch % args.eval_period == 0 and epoch > 0:
             return metrics.TopKAccuracy(module, iterator, k, test_interactions, num_users)
-
-    return _callback
+    return _callback, mx.callback.do_checkpoint(prefix=os.path.join(args.output_dir, 'recsys'), period=args.eval_period)
 
 
 def reset_id(df, cols):
-
+    """
+    Resets the index in a pandas data frame
+    """
     for col in cols:
         old_ids=df[col].unique().tolist()
         new_ids=list(range(len(old_ids)))
@@ -103,7 +104,7 @@ def build_iter_data(df, test_interactions, user_feature_cols, item_feature_cols)
     n_users, n_items = len(df.user.unique()), len(df.movie.unique())
 
     # Select latest n interactions per user as test set
-    test_positives=df.groupby(["user"], as_index=False, group_keys=False)\
+    test_positives = df.groupby(["user"], as_index=False, group_keys=False)\
         .apply(lambda x: x.nlargest(test_interactions, ["time"]))
     assert test_positives.shape[0] == n_users*test_interactions
 
@@ -130,7 +131,6 @@ def build_iter_data(df, test_interactions, user_feature_cols, item_feature_cols)
                                                         negative_sample_label=3, interaction_label=2,
                                                         interaction_labels=[1,2,3], batch_size=args.batch_size,
                                                         resample=False)
-
 
     # Build training iterator, making sure negatives sampled are not in the test set
     train_iter = iterators.SparseNegativeSamplingDataIter(sparse_interactions, user_features, item_features,
@@ -184,7 +184,7 @@ def build_recsys_symbol(iterator, num_users, num_items, num_embed, dropout, fc_l
     log_loss = - (softmax_label * mx.sym.log(pred)) - ((1 - softmax_label) * mx.sym.log(1 - pred))
     loss_grad = mx.sym.make_loss(log_loss)
 
-    return mx.sym.Group([mx.sym.BlockGrad(pred, name="pred"), loss_grad])
+    return mx.sym.Group([mx.sym.BlockGrad(pred, name="pred"), mx.sym.BlockGrad(log_loss, name="log_loss"), loss_grad])
 
 
 def train(symbol, train_iter, val_iter):
@@ -198,11 +198,11 @@ def train(symbol, train_iter, val_iter):
     module = mx.mod.Module(symbol, data_names=train_iter.data_names, label_names=train_iter.label_names, context=devs)
     module.fit(train_data=train_iter,
                optimizer=args.optimizer,
-               eval_metric=mx.metric.Loss(),
+               eval_metric=mx.metric.Loss(output_names=['log_loss_output'], name='log loss'),
                optimizer_params={'learning_rate': args.lr},
                initializer=mx.initializer.Normal(sigma=0.01),
                num_epoch=args.num_epochs,
-               epoch_end_callback=evaluate(module, val_iter, args.topk, args.test_interactions, num_users))
+               epoch_end_callback=evaluate_and_save(module, val_iter, args.topk, args.test_interactions, num_users))
 
 
 if __name__ == '__main__':
@@ -213,7 +213,7 @@ if __name__ == '__main__':
     shutil.rmtree(args.output_dir) if args.clean_output_dir else None
     os.mkdir(args.output_dir) if not os.path.exists(args.output_dir) else None
 
-    # Read interaction data into pandas dataframe
+    # Read interaction data into pandas data frame
     print('reading in interaction data...'.format())
     df = pd.read_csv(os.path.join(args.data, "ratings.dat"), sep="::", names=["user", "movie", "rating", "time"],
                      engine='python')
@@ -223,7 +223,7 @@ if __name__ == '__main__':
     train_iter, val_iter, num_users, num_items, df = build_iter_data(df, test_interactions=args.test_interactions,
                                                                      user_feature_cols=["user"],
                                                                      item_feature_cols=["movie"])
-
+    print("{} users and {} items".format(num_users, num_items))
     # Build model symbol
     print('building model graph...'.format())
     model_symbol = build_recsys_symbol(train_iter, num_users, num_items, args.num_embed, args.dropout, args.fc_layers)

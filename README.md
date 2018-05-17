@@ -24,14 +24,5 @@ A repository to experiment building recommender systems using apache MXNet.
 
 ## ToDo
   
-- [x] Ensure data iterator is feeding correct data to model
-- [x] Compute HR@K per epoch with callback function
-- [x] Download original data to ensure it is the same
-- [x] Do not specify batch size in network symbol
-- [x] Ensure network symbol is correct
-- [x] Print log loss during training with single output neuron
-- [x] Each time reset is called, sample new negatives in training
-- [x] Ensure iter_predict in evaluate callback is returning all test preds
-- [ ] Achieve similar training loss after similar epochs as paper
-- [x] Achieve similar validation HR@10 after similar epochs as paper
-- [ ] Test large models with dropout
+- [ ] Use normal data iterators with data in memory
+- [ ] Use callback functions to reproduce HR@K plots

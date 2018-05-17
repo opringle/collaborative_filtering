@@ -1,0 +1,290 @@
+{
+  "nodes": [
+    {
+      "op": "null", 
+      "name": "user_x", 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "user_embedding_weight", 
+      "attrs": {
+        "input_dim": "6040", 
+        "output_dim": "32"
+      }, 
+      "inputs": []
+    }, 
+    {
+      "op": "Embedding", 
+      "name": "user_embedding", 
+      "attrs": {
+        "input_dim": "6040", 
+        "output_dim": "32"
+      }, 
+      "inputs": [[0, 0, 0], [1, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "item_x", 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "item_embedding_weight", 
+      "attrs": {
+        "input_dim": "3706", 
+        "output_dim": "32"
+      }, 
+      "inputs": []
+    }, 
+    {
+      "op": "Embedding", 
+      "name": "item_embedding", 
+      "attrs": {
+        "input_dim": "3706", 
+        "output_dim": "32"
+      }, 
+      "inputs": [[3, 0, 0], [4, 0, 0]]
+    }, 
+    {
+      "op": "Concat", 
+      "name": "concat0", 
+      "attrs": {
+        "dim": "2", 
+        "num_args": "2"
+      }, 
+      "inputs": [[2, 0, 0], [5, 0, 0]]
+    }, 
+    {
+      "op": "Reshape", 
+      "name": "reshape0", 
+      "attrs": {"shape": "(0, -1)"}, 
+      "inputs": [[6, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 1_weight", 
+      "attrs": {"num_hidden": "32"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 1_bias", 
+      "attrs": {"num_hidden": "32"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "FullyConnected", 
+      "name": "fully connected layer 1", 
+      "attrs": {"num_hidden": "32"}, 
+      "inputs": [[7, 0, 0], [8, 0, 0], [9, 0, 0]]
+    }, 
+    {
+      "op": "relu", 
+      "name": "activated layer 1", 
+      "inputs": [[10, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 2_weight", 
+      "attrs": {"num_hidden": "16"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 2_bias", 
+      "attrs": {"num_hidden": "16"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "FullyConnected", 
+      "name": "fully connected layer 2", 
+      "attrs": {"num_hidden": "16"}, 
+      "inputs": [[11, 0, 0], [12, 0, 0], [13, 0, 0]]
+    }, 
+    {
+      "op": "relu", 
+      "name": "activated layer 2", 
+      "inputs": [[14, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 3_weight", 
+      "attrs": {"num_hidden": "8"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "fully connected layer 3_bias", 
+      "attrs": {"num_hidden": "8"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "FullyConnected", 
+      "name": "fully connected layer 3", 
+      "attrs": {"num_hidden": "8"}, 
+      "inputs": [[15, 0, 0], [16, 0, 0], [17, 0, 0]]
+    }, 
+    {
+      "op": "relu", 
+      "name": "activated layer 3", 
+      "inputs": [[18, 0, 0]]
+    }, 
+    {
+      "op": "Dropout", 
+      "name": "dropout layer 3", 
+      "attrs": {"p": "0.2"}, 
+      "inputs": [[19, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "fullyconnected0_weight", 
+      "attrs": {"num_hidden": "1"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "null", 
+      "name": "fullyconnected0_bias", 
+      "attrs": {"num_hidden": "1"}, 
+      "inputs": []
+    }, 
+    {
+      "op": "FullyConnected", 
+      "name": "fullyconnected0", 
+      "attrs": {"num_hidden": "1"}, 
+      "inputs": [[20, 0, 0], [21, 0, 0], [22, 0, 0]]
+    }, 
+    {
+      "op": "sigmoid", 
+      "name": "sigmoid0", 
+      "inputs": [[23, 0, 0]]
+    }, 
+    {
+      "op": "Reshape", 
+      "name": "pred", 
+      "attrs": {"shape": "(0,)"}, 
+      "inputs": [[24, 0, 0]]
+    }, 
+    {
+      "op": "BlockGrad", 
+      "name": "pred", 
+      "inputs": [[25, 0, 0]]
+    }, 
+    {
+      "op": "null", 
+      "name": "softmax_label", 
+      "inputs": []
+    }, 
+    {
+      "op": "log", 
+      "name": "log0", 
+      "inputs": [[25, 0, 0]]
+    }, 
+    {
+      "op": "elemwise_mul", 
+      "name": "_mul0", 
+      "inputs": [[27, 0, 0], [28, 0, 0]]
+    }, 
+    {
+      "op": "_mul_scalar", 
+      "name": "_mulscalar0", 
+      "attrs": {"scalar": "-1.0"}, 
+      "inputs": [[29, 0, 0]]
+    }, 
+    {
+      "op": "_rminus_scalar", 
+      "name": "_rminusscalar0", 
+      "attrs": {"scalar": "1"}, 
+      "inputs": [[27, 0, 0]]
+    }, 
+    {
+      "op": "_rminus_scalar", 
+      "name": "_rminusscalar1", 
+      "attrs": {"scalar": "1"}, 
+      "inputs": [[25, 0, 0]]
+    }, 
+    {
+      "op": "log", 
+      "name": "log1", 
+      "inputs": [[32, 0, 0]]
+    }, 
+    {
+      "op": "elemwise_mul", 
+      "name": "_mul1", 
+      "inputs": [[31, 0, 0], [33, 0, 0]]
+    }, 
+    {
+      "op": "elemwise_sub", 
+      "name": "_minus0", 
+      "inputs": [[30, 0, 0], [34, 0, 0]]
+    }, 
+    {
+      "op": "BlockGrad", 
+      "name": "log_loss", 
+      "inputs": [[35, 0, 0]]
+    }, 
+    {
+      "op": "make_loss", 
+      "name": "make_loss0", 
+      "inputs": [[35, 0, 0]]
+    }
+  ], 
+  "arg_nodes": [
+    0, 
+    1, 
+    3, 
+    4, 
+    8, 
+    9, 
+    12, 
+    13, 
+    16, 
+    17, 
+    21, 
+    22, 
+    27
+  ], 
+  "node_row_ptr": [
+    0, 
+    1, 
+    2, 
+    3, 
+    4, 
+    5, 
+    6, 
+    7, 
+    8, 
+    9, 
+    10, 
+    11, 
+    12, 
+    13, 
+    14, 
+    15, 
+    16, 
+    17, 
+    18, 
+    19, 
+    20, 
+    22, 
+    23, 
+    24, 
+    25, 
+    26, 
+    27, 
+    28, 
+    29, 
+    30, 
+    31, 
+    32, 
+    33, 
+    34, 
+    35, 
+    36, 
+    37, 
+    38, 
+    39
+  ], 
+  "heads": [[26, 0, 0], [36, 0, 0], [37, 0, 0]], 
+  "attrs": {"mxnet_version": ["int", 10100]}
+}

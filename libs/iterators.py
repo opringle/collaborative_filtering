@@ -111,7 +111,7 @@ class SparseNegativeSamplingDataIter(mx.io.DataIter):
                                                   shape=self.sparse_interactions.shape)
         self.sparse_interactions = self.sparse_interactions + sparse_sampled_negatives
 
-        print("negative sample time: {}".format(time.time()-start))
+        # print("negative sample time: {}".format(time.time()-start))
 
     def reset(self):
         """Resets the iterator to the beginning of the data. Generates new random negative samples."""
@@ -139,7 +139,7 @@ class SparseNegativeSamplingDataIter(mx.io.DataIter):
             self.nduserfeatures = mx.ndarray.take(a=self.unique_user_features, indices=self.ndusers)
             self.nditemfeatures = mx.ndarray.take(a=self.unique_item_features, indices=self.nditems)
 
-        print("iterator reset time: {}".format(time.time() - start))
+        # print("iterator reset time: {}".format(time.time() - start))
 
     def next(self):
         """Returns the next batch of data."""
